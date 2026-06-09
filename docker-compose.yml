@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: whatsapp-crm-db
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+      MONGO_INITDB_DATABASE: whatsapp-crm
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - crm-network
+
+  redis:
+    image: redis:latest
+    container_name: whatsapp-crm-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - crm-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: whatsapp-crm-backend
+    ports:
+      - "5000:5000"
+    environment:
+      MONGODB_URI: mongodb://admin:admin123@mongodb:27017/whatsapp-crm
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: development
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - crm-network
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: whatsapp-crm-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - crm-network
+    environment:
+      REACT_APP_API_URL: http://localhost:5000
+
+  whatsapp-agent:
+    build:
+      context: ./whatsapp-agent
+      dockerfile: Dockerfile
+    container_name: whatsapp-crm-agent
+    ports:
+      - "3001:3001"
+    environment:
+      MONGODB_URI: mongodb://admin:admin123@mongodb:27017/whatsapp-crm
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      WHATSAPP_API_TOKEN: ${WHATSAPP_API_TOKEN}
+    depends_on:
+      - mongodb
+      - backend
+    networks:
+      - crm-network
+    volumes:
+      - ./whatsapp-agent:/app
+      - /app/node_modules
+
+volumes:
+  mongodb_data:
+
+networks:
+  crm-network:
+    driver: bridge
